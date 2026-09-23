@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#1c2536">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231c2536'/%3E%3Ctext x='32' y='45' font-size='36' font-weight='700' font-family='Helvetica,Arial,sans-serif' fill='%23ffffff' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
@@ -705,12 +706,23 @@ body.kb-open .sides.solo .verdict .ans{font-size:15px;}
   .five-item .f,
   .side-body.compact .five-item .f{min-width:0;white-space:normal;overflow-wrap:break-word;}
 }
-/* ---- ⑥b 手机上下分屏时：把 5 组挤进各自那半屏（默认纵向留白太多，要滚才看得全） ---- */
+/* ---- ⑥b 手机上下分屏时：把 5 组挤进各自那半屏 ----
+   实测（412×915）：逐项 46px 高、5 组共 254px，加上底部浮动按钮占位 64px 后，
+   比 side-body 可用高度多出 26px → 第 5 组被「提交 / 确认」按钮压住 15px
+   （按钮 top=456px、第 5 组 bottom=470px），点到它容易误触发提交。
+   收紧三处：逐项 padding 8→5px、组间距 6→4px、按钮占位 64→58px，
+   实测 5 组降到 216px、列表底边 432px，距按钮顶边富余 24px。 */
 @media (max-width:700px){
-  .side-body.compact .five{gap:6px;}
-  .side-body.compact .five-item{padding:8px 14px;}
-  .side-body.compact{padding-bottom:64px;}
-  .side-body.compact .tip{font-size:12.5px;margin-bottom:6px;}
+  .side-body.compact .five{gap:4px;}
+  .side-body.compact .five-item{padding:5px 14px;}
+  .side-body.compact{padding-bottom:58px;}
+  .side-body.compact .tip{font-size:12.5px;margin-bottom:4px;}
+}
+/* ---- ⑥b-2 屏幕更矮的机型（≤780px）再紧一档，同样不许压住最后一组 ---- */
+@media (max-width:700px) and (max-height:780px){
+  .side-body.compact .five{gap:3px;}
+  .side-body.compact .five-item{padding:4px 12px;}
+  .side-body.compact .tip{font-size:11.5px;margin-bottom:3px;}
 }
 
 /* ---- ⑦ 大屏 / 希沃（≥1400）：整体放大一档，教室后排可读 ---- */
