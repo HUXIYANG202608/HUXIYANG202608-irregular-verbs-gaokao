@@ -162,9 +162,12 @@ body.kb-open .side-body{padding-bottom:22px;}
   border-radius:12px;white-space:nowrap;}
 
 /* 弹出层 */
-.modal{position:fixed;inset:0;background:rgba(20,28,42,.62);z-index:100;display:none;
+.modal{position:fixed;inset:0;background:rgba(20,28,42,.62);z-index:130;display:none;
   align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(3px);}
 .modal.show{display:flex;}
+/* 结算弹窗在时，自带键盘一律不显示（键盘层 z-index:120 会盖住导出/再来一局按钮）。
+   与脚本里的 KB.hide() 互补：任何路径弹出结算都不会被键盘挡。 */
+#modalResult.show ~ #kb{display:none !important;}
 .mbox{background:#fff;border-radius:20px;padding:26px 30px;max-width:820px;width:100%;
   box-shadow:0 24px 60px rgba(0,0,0,.3);max-height:calc(100dvh - 40px);overflow:auto;
   display:flex;flex-direction:column;}
@@ -789,6 +792,11 @@ body.kb-open .sides.solo .verdict .ans{font-size:15px;}
   .mode-demo{padding:6px 8px;margin:6px 0 2px;}
   .mode .stat{margin-top:6px;font-size:11px;}
 }
+/* 矮屏（手机横屏 / 投影一体机）弹出键盘时，底部提交区会被挤出可视区只露一条边；
+   此时收起它，提交改走自带键盘右下角的「提交」键。
+   必须带 !important：start() 里给 .foot 设过内联 style.display，内联样式优先级高于
+   任何选择器，不加 !important 这条媒体查询会被静默盖掉（第一版就是这么失效的）。 */
+@media (max-height:640px){ body.kb-open .foot{display:none !important;} }
 </style>
 </head>
 <body>
@@ -800,7 +808,7 @@ body.kb-open .sides.solo .verdict .ans{font-size:15px;}
     <span id="roundInfo">准备开始</span>
     <div class="spacer"></div>
     <button class="btn ghost" id="btnHome" style="display:none">返回首页</button>
-    <button class="btn" id="btnNext">下一题 ▶</button>
+    <button class="btn" id="btnNext" style="display:none">下一题 ▶</button>
     <div id="centerBar">
       <span id="timer">60</span>
     </div>
@@ -936,7 +944,7 @@ body.kb-open .sides.solo .verdict .ans{font-size:15px;}
         全部音源已内嵌，<b>无网络也能出声</b>。
       </div>
     </div>
-    <div class="footmark"><span class="ver">v1.1.0 · 20260923</span></div>
+    <div class="footmark"><span class="ver">v1.1.1 · 20260924</span></div>
   </div>
 
   <!-- 对战区 -->
@@ -1693,7 +1701,7 @@ function judgeL3(who, picked, el){
     setVerdict(who,true,`<b class="mk-ok">正确！</b><span class="ans">${q.answer}</span> — 出自 ${q.src}`);
     onCorrect(who);
   }else{
-    S.wrong.push({who, mode:'L3', q:q.sentence, expect:q.answer, got:picked, src:q.src});
+    S.wrong.push({who, mode:'L3', type:q.type, q:q.sentence, expect:q.answer, got:picked, src:q.src});
     setVerdict(who,false,`<b class="mk-no">应为</b> <span class="ans">${q.answer}</span>（${q.verb} 的${q.form==='past'?'过去式':'过去分词'}）。出处：${q.src}`);
   }
   afterJudge(who);
@@ -1723,8 +1731,8 @@ function doSubmit(who){
   }else{
     buzz('bad');
     setVerdict(who,false,`${ok1?M_OK:M_NO} 过去式 = <span class="ans">${q.past.join(' / ')}</span>　${ok2?M_OK:M_NO} 过去分词 = <span class="ans">${q.pp.join(' / ')}</span>`);
-    if(!ok1) S.wrong.push({who,mode:'L1',q:`${q.verb} (+${q.meaning})`,expect:`过去式: ${q.past.join('/')}`,got:a1||'(空)',src:'不规则动词表'});
-    if(!ok2) S.wrong.push({who,mode:'L1',q:`${q.verb} (+${q.meaning})`,expect:`过去分词: ${q.pp.join('/')}`,got:a2||'(空)',src:'不规则动词表'});
+    if(!ok1) S.wrong.push({who,mode:'L1',type:q.type,q:`${q.verb} (+${q.meaning})`,expect:`过去式: ${q.past.join('/')}`,got:a1||'(空)',src:'不规则动词表'});
+    if(!ok2) S.wrong.push({who,mode:'L1',type:q.type,q:`${q.verb} (+${q.meaning})`,expect:`过去分词: ${q.pp.join('/')}`,got:a2||'(空)',src:'不规则动词表'});
     onWrong(who);
   }
   afterJudge(who);
@@ -1820,7 +1828,10 @@ function analyze(who){
   });
   // 最集中的薄弱规律
   const weak = Object.entries(byType).sort((a,b)=>b[1]-a[1])[0];
-  const weakTxt = weak ? `${LABEL[weak[0]]||weak[0]}（错 ${weak[1]} 处）` : '暂无明显薄弱点';
+  // 兜底：有错题、但题面没带变形规律标签时，不能显示"暂无明显薄弱点"
+  // （否则建议句会被拼成"重点回看 暂无明显薄弱点"）
+  const weakTxt = weak ? `${LABEL[weak[0]]||weak[0]}（错 ${weak[1]} 处）`
+                : (wrongs.length ? `本次错题 ${wrongs.length} 处（未归入变形规律）` : '暂无明显薄弱点');
   // 建议
   let advice;
   if(acc>=90)      advice = '三态掌握很扎实，可以挑战"写出例句"或做真题语篇填空了。';
@@ -1898,6 +1909,7 @@ function endGame(){
     if(S.wrong.length===0 && finishedAll){ AUDIO.speak('perfect','Perfect! You got them all!'); buzz('win'); }
     else { AUDIO.speak('finish','Game over! Well done, everyone!'); }
 
+    if(KB.el) KB.hide();   // 先收起自带键盘，否则键盘层会盖住结算按钮
     $('#modalResult').classList.add('show');
     return;
   }
@@ -1935,6 +1947,7 @@ function endGame(){
   else if(r!==b){ AUDIO.speak('finish','Game over! Well done, everyone!'); buzz('win'); }
   else { AUDIO.speak('finish','Game over! Well done, everyone!'); }
 
+  if(KB.el) KB.hide();   // 先收起自带键盘，否则键盘层会盖住结算按钮
   $('#modalResult').classList.add('show');
 }
 
@@ -2239,8 +2252,9 @@ document.addEventListener('visibilitychange', ()=>{
   }
 });
 
-/* 初始化顶栏按钮显示 */
-$('#btnNext').style.display='inline-block';
+/* 顶栏「下一题 / 跳过本题」只在关卡内出现：进入关卡时由 start() 按 mode 放开显示。
+   首页必须保持隐藏 —— 否则首页会留下一个点了没反应的死按钮。 */
+$('#btnNext').style.display='none';
 </script>
 </body>
 </html>
